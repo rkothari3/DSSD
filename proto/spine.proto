@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package dssd.spine.v1;
+
+// Membership is the client-facing API for the shared membership/quorum
+// service. Applications (DiLoCo trainer, shard owners, ...) depend only
+// on this interface, never on SWIM or Raft internals directly.
+service Membership {
+  rpc Join(JoinRequest) returns (JoinResponse);
+  rpc Leave(LeaveRequest) returns (LeaveResponse);
+  rpc GetMembers(GetMembersRequest) returns (GetMembersResponse);
+  rpc GetQuorum(GetQuorumRequest) returns (GetQuorumResponse);
+  rpc GetLeader(GetLeaderRequest) returns (GetLeaderResponse);
+  rpc Watch(WatchRequest) returns (stream MembershipEvent);
+}
+
+enum MemberState {
+  ALIVE = 0;
+  SUSPECT = 1;
+  DEAD = 2;
+}
+
+message Member {
+  string id = 1;
+  string addr = 2;
+  MemberState state = 3;
+  uint64 incarnation = 4;
+}
+
+message JoinRequest {
+  string id = 1;
+  string addr = 2;
+}
+message JoinResponse {
+  repeated Member members = 1;
+}
+
+message LeaveRequest {
+  string id = 1;
+}
+message LeaveResponse {}
+
+message GetMembersRequest {}
+message GetMembersResponse {
+  repeated Member members = 1;
+}
+
+message GetQuorumRequest {}
+message GetQuorumResponse {
+  repeated Member members = 1;
+  uint64 view_version = 2;
+}
+
+message GetLeaderRequest {}
+message GetLeaderResponse {
+  string leader_id = 1;
+  uint64 term = 2;
+}
+
+message WatchRequest {}
+
+enum EventType {
+  JOINED = 0;
+  LEFT = 1;
+  FAILED = 2;
+  RECOVERED = 3;
+}
+
+message MembershipEvent {
+  EventType type = 1;
+  Member member = 2;
+}
+
+// Raft is the internal peer-to-peer RPC used for leader election and log
+// replication among members. It is not part of the client-facing API.
+service Raft {
+  rpc RequestVote(RequestVoteArgs) returns (RequestVoteReply);
+  rpc AppendEntries(AppendEntriesArgs) returns (AppendEntriesReply);
+}
+
+message LogEntry {
+  uint64 term = 1;
+  uint64 index = 2;
+  bytes command = 3;
+}
+
+message RequestVoteArgs {
+  uint64 term = 1;
+  string candidate_id = 2;
+  uint64 last_log_index = 3;
+  uint64 last_log_term = 4;
+}
+message RequestVoteReply {
+  uint64 term = 1;
+  bool vote_granted = 2;
+}
+
+message AppendEntriesArgs {
+  uint64 term = 1;
+  string leader_id = 2;
+  uint64 prev_log_index = 3;
+  uint64 prev_log_term = 4;
+  repeated LogEntry entries = 5;
+  uint64 leader_commit = 6;
+}
+message AppendEntriesReply {
+  uint64 term = 1;
+  bool success = 2;
+}
