@@ -8,10 +8,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import signal
 
 import grpc
 
 from dssd import spinepb
+from dssd.addr import split_addr
 from dssd.membership import GRPCTransport, Service
 from dssd.raft import Config as RaftConfig
 from dssd.raft import Raft
@@ -29,11 +31,6 @@ def parse_peers(values: list[str]) -> dict[str, str]:
         peer_id, addr = value.split("=", 1)
         peers[peer_id] = addr
     return peers
-
-
-def split_addr(addr: str) -> tuple[str, int]:
-    host, port = addr.rsplit(":", 1)
-    return host, int(port)
 
 
 async def run(args: argparse.Namespace) -> None:
@@ -57,7 +54,7 @@ async def run(args: argparse.Namespace) -> None:
             msg = await apply_queue.get()
             logger.info("raft: applied index=%d term=%d command=%r", msg.index, msg.term, msg.command)
 
-    asyncio.create_task(log_applied())
+    log_task = asyncio.create_task(log_applied())
 
     service = Service(swim_node, raft_node)
     service.start()
@@ -77,7 +74,21 @@ async def run(args: argparse.Namespace) -> None:
         grpc_port,
         list(peers.keys()),
     )
-    await server.wait_for_termination()
+
+    stop_requested = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, stop_requested.set)
+
+    await stop_requested.wait()
+    logger.info("member %s shutting down", args.id)
+
+    log_task.cancel()
+    await server.stop(grace=2)
+    await service.stop()
+    await raft_node.stop()
+    await swim_node.stop()
+    await transport.close()
 
 
 def main() -> None:

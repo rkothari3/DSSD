@@ -13,6 +13,8 @@ import asyncio
 import random
 from dataclasses import dataclass
 
+from dssd.addr import format_addr, split_addr
+
 from .message import Message, MsgType, Sender
 from .state import Event, EventType, Member, State, supersedes
 
@@ -29,10 +31,10 @@ class Config:
     protocol_period: float = 0.2  # how often to probe a random member
     ping_timeout: float = 0.05  # time to wait for a direct or indirect ack
     indirect_ping_count: int = 3  # helpers used for indirect probing
-    suspicion_timeout: float | None = None  # defaults to 5x protocol_period
+    suspicion_timeout: float = 0.0  # 0 means "derive from protocol_period"
 
     def __post_init__(self) -> None:
-        if self.suspicion_timeout is None:
+        if self.suspicion_timeout <= 0:
             self.suspicion_timeout = 5 * self.protocol_period
 
 
@@ -81,7 +83,7 @@ class Node:
         )
         self._transport = transport
         host, port = transport.get_extra_info("sockname")[:2]
-        self._bind_addr = f"{host}:{port}"
+        self._bind_addr = format_addr(host, port)
         self._probe_task = asyncio.create_task(self._probe_loop())
 
     async def stop(self) -> None:
@@ -139,9 +141,9 @@ class Node:
         return self._seq_no
 
     def _send(self, addr: str, msg: Message) -> None:
-        host, port = addr.rsplit(":", 1)
+        host, port = split_addr(addr)
         assert self._transport is not None
-        self._transport.sendto(msg.encode(), (host, int(port)))
+        self._transport.sendto(msg.encode(), (host, port))
 
     def _emit(self, event: Event) -> None:
         try:

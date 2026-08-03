@@ -7,6 +7,7 @@ from dssd.raft import (
     AppendEntriesReply,
     ApplyMsg,
     Config,
+    LogEntry,
     Raft,
     RequestVoteArgs,
     RequestVoteReply,
@@ -197,3 +198,38 @@ async def test_minority_partition_cannot_commit():
     finally:
         cluster.network.heal_all()
         await cluster.stop()
+
+
+async def test_append_entries_truncates_conflicting_suffix():
+    # A follower accepts an entry from a stale leader...
+    follower = Raft(make_config("f", []), FakeTransport("f", FakeNetwork()), asyncio.Queue())
+    stale = follower.handle_append_entries(
+        AppendEntriesArgs(
+            term=1,
+            leader_id="old-leader",
+            prev_log_index=0,
+            prev_log_term=0,
+            entries=(LogEntry(term=1, index=1, command=b"stale"),),
+            leader_commit=0,
+        )
+    )
+    assert stale.success
+    assert follower._log[1].command == b"stale"
+
+    # ...then a new leader at a higher term overwrites that same index.
+    # Per Raft's log-matching property, the follower must discard its
+    # conflicting entry rather than keep both.
+    fresh = follower.handle_append_entries(
+        AppendEntriesArgs(
+            term=2,
+            leader_id="new-leader",
+            prev_log_index=0,
+            prev_log_term=0,
+            entries=(LogEntry(term=2, index=1, command=b"fresh"),),
+            leader_commit=0,
+        )
+    )
+    assert fresh.success
+    assert len(follower._log) == 2
+    assert follower._log[1].term == 2
+    assert follower._log[1].command == b"fresh"
