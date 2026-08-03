@@ -8,6 +8,9 @@ dependencies = [
     "protobuf>=5.27",
 ]
 
+[project.scripts]
+dssd-member = "dssd.cmd.member:main"
+
 [project.optional-dependencies]
 dev = [
     "grpcio-tools>=1.66",
