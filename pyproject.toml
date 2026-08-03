@@ -1,0 +1,30 @@
+[project]
+name = "dssd"
+version = "0.1.0"
+description = "Fault-tolerant membership: SWIM failure detection + Raft leader election"
+requires-python = ">=3.11"
+dependencies = [
+    "grpcio>=1.66",
+    "protobuf>=5.27",
+]
+
+[project.scripts]
+dssd-member = "dssd.cmd.member:main"
+
+[project.optional-dependencies]
+dev = [
+    "grpcio-tools>=1.66",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
