@@ -16,6 +16,7 @@ dssd-member = "dssd.cmd.member:main"
 dssd-worker = "dssd.diloco.worker:main"
 dssd-dashboard = "dssd.dashboard.server:main"
 dssd-region = "dssd.sharding.cli:main"
+dssd-experiment = "dssd.diloco.experiment:main"
 
 [project.optional-dependencies]
 dev = [

@@ -15,7 +15,7 @@ import grpc
 import torch
 
 from dssd import dashboardpb, spinepb, trainerpb
-from dssd.addr import split_addr
+from dssd.addr import resolve_addr, split_addr
 from dssd.cmd.member import parse_peers
 from dssd.membership import GRPCTransport
 from dssd.membership import Service as MembershipService
@@ -159,7 +159,7 @@ async def run(args: argparse.Namespace) -> None:
     swim_node = SwimNode(SwimConfig(id=args.id, bind_host=swim_host, bind_port=swim_port))
     await swim_node.start()
     if args.join:
-        await swim_node.join(args.join)
+        await swim_node.join(resolve_addr(args.join))
 
     transport = GRPCTransport(peers)
     apply_queue: asyncio.Queue = asyncio.Queue()
@@ -179,9 +179,10 @@ async def run(args: argparse.Namespace) -> None:
     spinepb.add_RaftServicer_to_server(membership_service, server)
     grpc_host, _ = split_addr(args.grpc_addr)
     grpc_port = server.add_insecure_port(args.grpc_addr)
+    advertise_host = args.advertise_host or grpc_host
 
     peer_addrs = dict(peers)
-    peer_addrs[args.id] = f"{grpc_host}:{grpc_port}"
+    peer_addrs[args.id] = f"{advertise_host}:{grpc_port}"
 
     worker = Worker(
         args.id,
@@ -232,6 +233,12 @@ def main() -> None:
     parser.add_argument("--id", required=True, help="unique worker id")
     parser.add_argument("--swim-addr", default="127.0.0.1:0", help="UDP address for SWIM gossip")
     parser.add_argument("--grpc-addr", default="127.0.0.1:0", help="TCP address for the gRPC membership/raft/trainer API")
+    parser.add_argument(
+        "--advertise-host",
+        default="",
+        help="host to advertise for this worker's own gRPC address, if different from --grpc-addr's "
+        "bind host (e.g. bind 0.0.0.0 so kubectl port-forward works, advertise the pod IP to peers)",
+    )
     parser.add_argument("--join", default="", help="SWIM address of an existing member to bootstrap from")
     parser.add_argument("--peer", action="append", default=[], help="peer as id=grpc-host:port; repeat for each peer")
     parser.add_argument("--inner-steps", type=int, default=20, help="local AdamW steps per outer sync")
