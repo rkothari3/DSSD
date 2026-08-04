@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package dssd.trainer.v1;
+
+// Trainer is hosted by the current group coordinator (the membership
+// spine's Raft leader) and implements the DiLoCo outer-step barrier:
+// workers submit their local pseudo-gradient and block until the round
+// closes, then all receive the new global model state together.
+service Trainer {
+  rpc Sync(SyncRequest) returns (SyncResponse);
+}
+
+message Tensor {
+  string key = 1;
+  repeated int64 shape = 2;
+  repeated float data = 3;
+}
+
+message SyncRequest {
+  string worker_id = 1;
+  uint64 round = 2;
+  repeated Tensor pseudo_gradient = 3;
+}
+
+message SyncResponse {
+  uint64 round = 1;
+  repeated Tensor global_state = 2;
+}
