@@ -110,6 +110,7 @@
   .end-dot { stroke: var(--surface-1); stroke-width: 2; }
   .crosshair { stroke: var(--baseline); stroke-width: 1; pointer-events: none; }
   .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; }
+  .axis-caption { color: var(--text-muted); font-size: 11px; margin-top: 8px; }
   .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
   .legend-swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
   .tooltip {
@@ -154,12 +155,13 @@
 </header>
 <main>
   <section class="card">
-    <h2>Loss by round</h2>
+    <h2>Loss vs. wall-clock time</h2>
     <div class="chart-wrap">
       <svg id="chart" viewBox="0 0 900 320" preserveAspectRatio="none"></svg>
       <div class="tooltip" id="tooltip"></div>
     </div>
     <div class="legend" id="legend"></div>
+    <div class="axis-caption">seconds since this dashboard connected &middot; hover for values</div>
   </section>
   <section class="card">
     <h2>Workers</h2>
@@ -226,14 +228,20 @@ function updateTable(workers) {
   }
 }
 
-function updateHistory(workers) {
+let t0 = null; // wall-clock time of the first snapshot this page has seen
+
+function updateHistory(timestamp, workers) {
+  if (t0 === null) t0 = timestamp;
+  const elapsed = timestamp - t0;
+
   for (const w of workers) {
     if (w.loss === null) continue;
     if (!history.has(w.id)) history.set(w.id, []);
     const series = history.get(w.id);
-    const last = series[series.length - 1];
-    if (last && last.round === w.round) continue; // no new round yet
-    series.push({ round: w.round, loss: w.loss });
+    // Round resets on leader failover (it's scoped to that leader's
+    // barrier instance, not cluster-wide), so it can't be the x-axis -
+    // wall-clock time is the only thing guaranteed to keep increasing.
+    series.push({ t: elapsed, round: w.round, loss: w.loss });
     if (series.length > 300) series.shift();
   }
 }
@@ -251,18 +259,19 @@ function drawChart() {
   const ids = [...history.keys()].filter((id) => history.get(id).length > 0);
   if (ids.length === 0) return;
 
-  let maxLoss = 0, maxRound = 1;
+  let maxLoss = 0, maxT = 1;
   for (const id of ids) {
     for (const p of history.get(id)) {
       if (p.loss > maxLoss) maxLoss = p.loss;
-      if (p.round > maxRound) maxRound = p.round;
+      if (p.t > maxT) maxT = p.t;
     }
   }
   maxLoss = maxLoss <= 0 ? 1 : maxLoss * 1.1;
+  maxT = maxT <= 0 ? 1 : maxT;
 
   const plotW = W - MARGIN.left - MARGIN.right;
   const plotH = H - MARGIN.top - MARGIN.bottom;
-  const x = (round) => MARGIN.left + (round / maxRound) * plotW;
+  const x = (t) => MARGIN.left + (t / maxT) * plotW;
   const y = (loss) => MARGIN.top + plotH - (loss / maxLoss) * plotH;
 
   const svgNS = "http://www.w3.org/2000/svg";
@@ -290,7 +299,7 @@ function drawChart() {
   for (const id of ids) {
     const color = assignColor(id);
     const points = history.get(id);
-    const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.round)},${y(p.loss)}`).join(" ");
+    const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.t)},${y(p.loss)}`).join(" ");
 
     const path = document.createElementNS(svgNS, "path");
     path.setAttribute("class", "series-line");
@@ -301,7 +310,7 @@ function drawChart() {
     const last = points[points.length - 1];
     const dot = document.createElementNS(svgNS, "circle");
     dot.setAttribute("class", "end-dot");
-    dot.setAttribute("cx", x(last.round));
+    dot.setAttribute("cx", x(last.t));
     dot.setAttribute("cy", y(last.loss));
     dot.setAttribute("r", 4);
     dot.setAttribute("fill", color);
@@ -317,16 +326,16 @@ function drawChart() {
     const rect = svg.getBoundingClientRect();
     const scaleX = W / rect.width;
     const mouseX = (evt.clientX - rect.left) * scaleX;
-    const round = Math.round(((mouseX - MARGIN.left) / plotW) * maxRound);
+    const t = ((mouseX - MARGIN.left) / plotW) * maxT;
 
     const rows = [];
     for (const id of ids) {
       const points = history.get(id);
       let nearest = points[0];
       for (const p of points) {
-        if (Math.abs(p.round - round) < Math.abs(nearest.round - round)) nearest = p;
+        if (Math.abs(p.t - t) < Math.abs(nearest.t - t)) nearest = p;
       }
-      rows.push({ id, color: resolveVar(assignColor(id)), loss: nearest.loss, round: nearest.round });
+      rows.push({ id, color: resolveVar(assignColor(id)), loss: nearest.loss, round: nearest.round, t: nearest.t });
     }
     if (rows.length === 0) return;
 
@@ -334,7 +343,7 @@ function drawChart() {
     tooltip.style.left = `${evt.clientX - rect.left + 12}px`;
     tooltip.style.top = `${evt.clientY - rect.top - 12}px`;
     tooltip.innerHTML =
-      `<div style="color:var(--text-secondary);margin-bottom:4px;">round ${rows[0].round}</div>` +
+      `<div style="color:var(--text-secondary);margin-bottom:4px;">+${Math.round(rows[0].t)}s</div>` +
       rows
         .map(
           (r) =>
@@ -362,7 +371,7 @@ function connect() {
   ws.onmessage = (evt) => {
     const msg = JSON.parse(evt.data);
     updateTable(msg.workers);
-    updateHistory(msg.workers);
+    updateHistory(msg.timestamp, msg.workers);
     drawChart();
   };
 }
