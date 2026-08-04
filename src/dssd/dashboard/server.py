@@ -33,14 +33,30 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     await ws.prepare(request)
     poller: Poller = request.app["poller"]
 
-    try:
+    async def push_loop() -> None:
         while True:
             snapshot = await poller.snapshot()
             await ws.send_str(json.dumps(snapshot))
             await asyncio.sleep(POLL_INTERVAL)
-    except (ConnectionResetError, asyncio.CancelledError):
+
+    async def receive_loop() -> None:
+        # This dashboard is push-only, but a WS connection still needs
+        # something reading frames to notice a client-side close
+        # promptly - without it, a closed browser tab is only detected
+        # whenever the next send_str() happens to fail.
+        async for _ in ws:
+            pass
+
+    pusher = asyncio.create_task(push_loop())
+    receiver = asyncio.create_task(receive_loop())
+    try:
+        await asyncio.wait({pusher, receiver}, return_when=asyncio.FIRST_COMPLETED)
+    except asyncio.CancelledError:
         pass
     finally:
+        pusher.cancel()
+        receiver.cancel()
+        await asyncio.gather(pusher, receiver, return_exceptions=True)
         if not ws.closed:
             await ws.close()
     return ws
