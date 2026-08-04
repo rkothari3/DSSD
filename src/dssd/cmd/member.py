@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-import signal
 
 import grpc
 
@@ -17,6 +16,7 @@ from dssd.addr import split_addr
 from dssd.membership import GRPCTransport, Service
 from dssd.raft import Config as RaftConfig
 from dssd.raft import Raft
+from dssd.shutdown import install_shutdown_handler
 from dssd.swim import Config as SwimConfig
 from dssd.swim import Node
 
@@ -76,9 +76,7 @@ async def run(args: argparse.Namespace) -> None:
     )
 
     stop_requested = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop_requested.set)
+    install_shutdown_handler(stop_requested)
 
     await stop_requested.wait()
     logger.info("member %s shutting down", args.id)

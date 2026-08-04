@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-import signal
 
 import grpc
 import torch
@@ -22,6 +21,7 @@ from dssd.membership import GRPCTransport
 from dssd.membership import Service as MembershipService
 from dssd.raft import Config as RaftConfig
 from dssd.raft import Raft
+from dssd.shutdown import install_shutdown_handler
 from dssd.swim import Config as SwimConfig
 from dssd.swim import Node as SwimNode
 from dssd.swim import State as SwimState
@@ -192,9 +192,7 @@ async def run(args: argparse.Namespace) -> None:
     progress_task = asyncio.create_task(log_progress())
 
     stop_requested = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop_requested.set)
+    install_shutdown_handler(stop_requested)
 
     await stop_requested.wait()
     logger.info("worker %s shutting down", args.id)
