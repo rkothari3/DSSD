@@ -6,10 +6,13 @@ requires-python = ">=3.11"
 dependencies = [
     "grpcio>=1.66",
     "protobuf>=5.27",
+    "torch>=2.0",
+    "numpy>=1.26",
 ]
 
 [project.scripts]
 dssd-member = "dssd.cmd.member:main"
+dssd-worker = "dssd.diloco.worker:main"
 
 [project.optional-dependencies]
 dev = [
