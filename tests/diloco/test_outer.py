@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from dssd.diloco.outer import OuterOptimizer, average_pseudo_gradients, pseudo_gradient
@@ -24,11 +25,8 @@ def test_average_pseudo_gradients_across_workers():
 
 
 def test_average_pseudo_gradients_requires_at_least_one():
-    try:
+    with pytest.raises(ValueError):
         average_pseudo_gradients([])
-        assert False, "expected ValueError"
-    except ValueError:
-        pass
 
 
 def test_outer_step_matches_plain_sgd_without_momentum():

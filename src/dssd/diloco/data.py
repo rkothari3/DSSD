@@ -34,6 +34,8 @@ def synthetic_corpus(length: int) -> str:
 
 def make_batch(data: torch.Tensor, block_size: int, batch_size: int) -> tuple[torch.Tensor, torch.Tensor]:
     max_start = len(data) - block_size - 1
+    if max_start <= 0:
+        raise ValueError(f"data has {len(data)} tokens, too short for block_size={block_size}")
     starts = torch.randint(0, max_start, (batch_size,))
     x = torch.stack([data[s : s + block_size] for s in starts])
     y = torch.stack([data[s + 1 : s + block_size + 1] for s in starts])
