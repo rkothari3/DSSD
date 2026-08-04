@@ -9,12 +9,12 @@ from .state import Event, EventType, Member, State
 
 __all__ = [
     "Config",
-    "Node",
-    "State",
-    "Member",
     "Event",
     "EventType",
+    "Member",
     "Message",
     "MsgType",
+    "Node",
     "Sender",
+    "State",
 ]

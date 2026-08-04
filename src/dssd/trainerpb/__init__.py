@@ -6,9 +6,9 @@ from .trainer_pb2_grpc import (
 )
 
 __all__ = [
-    "Tensor",
     "SyncRequest",
     "SyncResponse",
+    "Tensor",
     "TrainerServicer",
     "TrainerStub",
     "add_TrainerServicer_to_server",

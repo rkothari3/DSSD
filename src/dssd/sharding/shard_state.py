@@ -32,7 +32,7 @@ class ShardStateMachine:
     replicated agent registry, and lets the current leader propose the
     next tick's state."""
 
-    def __init__(self, shard_raft: raft.Raft, apply_queue: "asyncio.Queue[raft.ApplyMsg]") -> None:
+    def __init__(self, shard_raft: raft.Raft, apply_queue: asyncio.Queue[raft.ApplyMsg]) -> None:
         self.raft = shard_raft
         self._apply_queue = apply_queue
         self.agents: dict[str, AgentState] = {}

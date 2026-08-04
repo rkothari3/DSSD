@@ -45,7 +45,7 @@ class Raft:
     """Leader election and log replication for one cluster member. All
     state is in memory only."""
 
-    def __init__(self, config: Config, transport: Transport, apply_queue: "asyncio.Queue[ApplyMsg]") -> None:
+    def __init__(self, config: Config, transport: Transport, apply_queue: asyncio.Queue[ApplyMsg]) -> None:
         self.cfg = config
         self._transport = transport
         self._apply_queue = apply_queue
@@ -170,7 +170,7 @@ class Raft:
                     ),
                     timeout=2 * self.cfg.heartbeat_interval,
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 - any RPC failure just means "peer unreachable this round"
                 return
 
             if reply.term > self._current_term:
@@ -244,9 +244,10 @@ class Raft:
         self._leader_id = args.leader_id
         self._last_contact = asyncio.get_event_loop().time()
 
-        if args.prev_log_index > 0:
-            if args.prev_log_index >= len(self._log) or self._log[args.prev_log_index].term != args.prev_log_term:
-                return AppendEntriesReply(term=self._current_term, success=False)
+        if args.prev_log_index > 0 and (
+            args.prev_log_index >= len(self._log) or self._log[args.prev_log_index].term != args.prev_log_term
+        ):
+            return AppendEntriesReply(term=self._current_term, success=False)
 
         for i, entry in enumerate(args.entries):
             idx = args.prev_log_index + 1 + i
@@ -296,7 +297,7 @@ class Raft:
                 ),
                 timeout=2 * self.cfg.heartbeat_interval,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - any RPC failure just means "peer unreachable this round"
             return
 
         if reply.term > self._current_term:

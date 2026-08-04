@@ -12,14 +12,14 @@ from .types import (
 )
 
 __all__ = [
-    "Config",
-    "Raft",
-    "Role",
     "AppendEntriesArgs",
     "AppendEntriesReply",
     "ApplyMsg",
+    "Config",
     "LogEntry",
+    "Raft",
     "RequestVoteArgs",
     "RequestVoteReply",
+    "Role",
     "Transport",
 ]

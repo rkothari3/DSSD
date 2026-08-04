@@ -17,7 +17,7 @@ constructed per term anyway.
 from __future__ import annotations
 
 import asyncio
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 
 import torch
 
@@ -35,7 +35,7 @@ def state_to_pb(state: StateDict) -> list[trainerpb.Tensor]:
     ]
 
 
-def state_from_pb(tensors: list[trainerpb.Tensor]) -> StateDict:
+def state_from_pb(tensors: Iterable[trainerpb.Tensor]) -> StateDict:
     return {t.key: torch.tensor(list(t.data), dtype=torch.float32).reshape(list(t.shape)) for t in tensors}
 
 

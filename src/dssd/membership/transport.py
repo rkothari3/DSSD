@@ -6,7 +6,12 @@ from __future__ import annotations
 import grpc
 
 from dssd import spinepb
-from dssd.raft import AppendEntriesArgs, AppendEntriesReply, RequestVoteArgs, RequestVoteReply
+from dssd.raft import (
+    AppendEntriesArgs,
+    AppendEntriesReply,
+    RequestVoteArgs,
+    RequestVoteReply,
+)
 
 
 class GRPCTransport:

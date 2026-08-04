@@ -125,7 +125,7 @@ class Node:
             self._send(contact_addr, Message(type=MsgType.JOIN, seq=seq, sender=self._self_sender()))
             try:
                 await asyncio.wait_for(asyncio.shield(fut), timeout=3 * self.cfg.ping_timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 raise TimeoutError(f"swim: join {contact_addr} timed out") from None
         finally:
             self._unregister_waiter(seq)
@@ -218,7 +218,7 @@ class Node:
         try:
             await asyncio.wait_for(asyncio.shield(fut), timeout)
             return True
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return False
 
     async def _relay_ping(self, req: Message) -> None:
@@ -424,6 +424,6 @@ class _Protocol(asyncio.DatagramProtocol):
     def datagram_received(self, data: bytes, addr) -> None:
         try:
             msg = Message.decode(data)
-        except Exception:
+        except Exception:  # noqa: BLE001 - a malformed inbound packet must never crash the probe loop
             return
         self._node._handle_message(msg)

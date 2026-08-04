@@ -1,5 +1,22 @@
 # Distributed Systems Capstone Research Report: Fault-Tolerant Training + "Live City" (2026)
 
+## Implementation Status
+
+This report was the design/planning document; the project itself was built out in
+Python on top of it. Final state:
+
+- **Implemented:** Stage 0 (Raft/SWIM groundwork), Stage 1 (membership spine: SWIM
+  failure detection + Raft leader election over gRPC), Stage 2 (DiLoCo inner/outer
+  training loop on a local `kind` Kubernetes cluster, with a chaos-kill scheduler and
+  the loss-vs-wall-clock plot at 0/5/20 kills), and Stage 3 (spatial sharding: per-shard
+  Raft ownership + fenced cross-shard agent hand-off).
+- **Not implemented — explicitly out of scope:** Stage 4 (optional real-cloud/multi-VM
+  chaos). It was scoped as optional in the original recommendations below, and was
+  dropped going forward since the core distributed-systems learning goals (failure
+  detection, consensus, sharding, fault-tolerant training) are already demonstrated
+  locally on `kind` at $0 cost. No multi-VM/multi-region chaos experiment exists in
+  this repo.
+
 ## TL;DR
 - **Build your OWN membership/failure-detection layer (SWIM-style gossip + heartbeats and a Raft-based leader election), and treat everything else — Kubernetes, gRPC, Prometheus/Grafana, PyTorch — as swappable plumbing.** The reusable "membership + quorum + failure-detection" service is both the genuine distributed-systems learning AND the architectural seam that lets Phase 1 and Phase 2 share a spine. This mirrors how Meta's `torchft` splits a standalone `torchft.coordination` module (Lighthouse + Manager quorum/heartbeat) from its training-specific ProcessGroup logic.
 - **You can do ~90% of this for $0.** Local multi-node Kubernetes via `kind`, nanoGPT-scale training on a single consumer GPU or free tier, and chaos via real pod evictions all run on one laptop. You only need to pay for genuine multi-machine (multi-VM/multi-region) chaos, and student credits (GitHub Student Pack → $200 DigitalOcean, Azure for Students $100, Oracle Cloud always-free ARM) cover that scope.
@@ -129,7 +146,7 @@ The right design is to build a **standalone membership/failure-detection/quorum 
 
 **Stage 3 — Phase 2 reuses the spine:** Add per-shard **Raft leader election** (reuse the membership service for the peer set) for region ownership; implement agent hand-off with epoch/fencing to avoid zombie owners; define the cross-boundary consistency policy explicitly (e.g., primary-owns-writes + read-only ghosts). Movement model: start with behavior cloning on inD/PIE; keep it lightweight. **Threshold for "done":** kill a region-server and see <1s hand-off with no agent loss — if agents duplicate or vanish, your consistency/fencing policy is the culprit.
 
-**Stage 4 — Optional real-cloud chaos:** Only if you want a genuine network-partition demo, spin up a few Oracle Cloud always-free ARM VMs (or DigitalOcean $200 student credit) and repeat a partition experiment. Otherwise skip — it adds cost/complexity, not learning.
+**Stage 4 — Optional real-cloud chaos: not implemented (optional, out of scope).** Only if you want a genuine network-partition demo, spin up a few Oracle Cloud always-free ARM VMs (or DigitalOcean $200 student credit) and repeat a partition experiment. Otherwise skip — it adds cost/complexity, not learning. **Final call for this project: skipped** — Stages 1-3 already demonstrate the core distributed-systems learning goals at $0 cost.
 
 **Escalation triggers to change tooling:** if `kind` can't model the failure you need (e.g., real kernel/network faults), move that one experiment to `k3d` or cloud VMs; if Prometheus+Grafana is too heavy for a solo timeline, a minimal custom dashboard suffices; if hand-implementing Raft stalls the timeline, use the 6.5840 lab structure as a scaffold rather than starting blank.
 
