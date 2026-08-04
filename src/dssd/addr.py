@@ -5,6 +5,19 @@ a bare ``rsplit(":", 1)`` can't tell an address colon from a port colon.
 
 from __future__ import annotations
 
+import socket
+
+
+def resolve_addr(addr: str) -> str:
+    """Resolves a hostname:port address to a numeric-IP address,
+    unchanged if already numeric. Needed for raw UDP sendto (e.g. SWIM's
+    single join contact), which - unlike gRPC's channel resolver -
+    requires an already-resolved sockaddr.
+    """
+    host, port = split_addr(addr)
+    ip = socket.gethostbyname(host)
+    return format_addr(ip, port)
+
 
 def format_addr(host: str, port: int) -> str:
     if ":" in host:

@@ -1,0 +1,323 @@
+<title>DiLoCo on kind: loss vs. wall-clock at 0/5/20 kills</title>
+<style>
+  .viz-page {
+    color-scheme: light;
+    --page:           #f9f9f7;
+    --surface-1:      #fcfcfb;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --axis:           #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-0:       #2a78d6;
+    --series-5:       #eb6834;
+    --series-20:      #1baf7a;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+    min-height: 100vh;
+    margin: 0;
+    padding: 32px 20px 60px;
+    box-sizing: border-box;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-page {
+      color-scheme: dark;
+      --page:           #0d0d0d;
+      --surface-1:      #1a1a19;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --axis:           #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-0:       #3987e5;
+      --series-5:       #d95926;
+      --series-20:      #199e70;
+    }
+  }
+  :root[data-theme="dark"] .viz-page {
+    color-scheme: dark;
+    --page:           #0d0d0d;
+    --surface-1:      #1a1a19;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --axis:           #383835;
+    --series-0:       #3987e5;
+    --series-5:       #d95926;
+    --series-20:      #199e70;
+  }
+  .viz-page * { box-sizing: border-box; }
+  .viz-wrap { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 19px; font-weight: 600; margin: 0 0 4px; }
+  .subtitle { color: var(--text-secondary); font-size: 13px; margin: 0 0 24px; }
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 20px 12px;
+    overflow-x: auto;
+  }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+  .card-head h2 { font-size: 14px; font-weight: 600; margin: 0; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .legend-key { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .gridline { stroke: var(--gridline); stroke-width: 1; }
+  .axis-line { stroke: var(--axis); stroke-width: 1; }
+  .axis-label { fill: var(--text-muted); font-size: 11px; }
+  .series-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .end-dot { stroke-width: 2; }
+  .end-label { font-size: 12px; font-weight: 600; }
+  .crosshair { stroke: var(--axis); stroke-width: 1; opacity: 0; pointer-events: none; }
+  .hit-layer { fill: transparent; cursor: crosshair; }
+  .tooltip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity 80ms;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; min-width: 150px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+  .tooltip-x { color: var(--text-muted); margin-bottom: 6px; }
+  .tooltip-row { display: flex; align-items: center; gap: 6px; justify-content: space-between; padding: 2px 0; }
+  .tooltip-row .key { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .tooltip-row .keyline { width: 10px; height: 2px; display: inline-block; }
+  .tooltip-row .val { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .toggle-btn {
+    font: inherit; font-size: 12px; color: var(--text-secondary);
+    background: transparent; border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 10px; cursor: pointer;
+  }
+  .toggle-btn:hover { color: var(--text-primary); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  th, td { text-align: right; padding: 5px 8px; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; font-variant-numeric: initial; }
+  th { color: var(--text-muted); font-weight: 500; border-bottom: 1px solid var(--gridline); }
+  td { border-bottom: 1px solid var(--gridline); color: var(--text-secondary); }
+  .table-wrap { display: none; max-height: 360px; overflow-y: auto; }
+  .note { color: var(--text-muted); font-size: 12px; margin-top: 14px; line-height: 1.5; }
+</style>
+
+<div class="viz-page">
+  <div class="viz-wrap">
+    <h1>DiLoCo on kind: loss vs. wall-clock at 0 / 5 / 20 kills</h1>
+    <p class="subtitle">Average worker loss over a 240s run on a 3-node kind cluster (5 worker pods), while a chaos scheduler kills pods evenly spaced across the run.</p>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Average loss vs. elapsed time</h2>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="legend" id="legend"></div>
+          <button class="toggle-btn" id="toggle-table" type="button">View as table</button>
+        </div>
+      </div>
+      <div id="chart-container" style="position:relative;">
+        <svg id="chart" viewBox="0 0 820 380" role="img" aria-label="Line chart of average worker loss over time for 0, 5, and 20 pod kills"></svg>
+        <div class="tooltip" id="tooltip"></div>
+      </div>
+      <div class="table-wrap" id="table-wrap"></div>
+      <p class="note">Each point is the average loss across whichever workers answered a poll every ~3s; a worker mid-restart just drops out of that average rather than reporting zero. At 20 kills a freshly-replaced pod restarts training from scratch and gets counted once it's back up, which is why that curve is noisier and slower to settle - the system keeps making progress at every kill count, it just gets bumpier as chaos increases.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const data = {
+    "0":  [[3.01, 1.4023], [6.02, 1.1975], [9.03, 1.1975], [12.05, 1.1975], [15.06, 1.1975], [18.06, 1.1975], [21.07, 0.9334], [24.08, 0.9378], [27.08, 0.9378], [30.1, 0.9378], [33.11, 0.9378], [36.12, 0.9378], [39.13, 0.8202], [42.14, 0.8202], [45.15, 0.7246], [48.17, 0.6259], [51.19, 0.6259], [54.2, 0.4468], [57.21, 0.4468], [60.22, 0.4468], [63.23, 0.4468], [66.24, 0.4468], [69.24, 0.439], [72.25, 0.3669], [75.26, 0.3669], [78.27, 0.3261], [81.28, 0.2737], [84.29, 0.2266], [87.29, 0.2266], [90.3, 0.2266], [93.3, 0.185], [96.32, 0.185], [99.33, 0.1287], [102.34, 0.1287], [105.35, 0.1287], [108.35, 0.1134], [111.36, 0.1243], [114.37, 0.1243], [117.39, 0.1104], [120.4, 0.1048], [123.41, 0.1048], [126.42, 0.1048], [129.44, 0.1048], [132.45, 0.1048], [135.47, 0.0829], [138.48, 0.0998], [141.49, 0.0998], [144.49, 0.0998], [147.5, 0.1427], [150.51, 0.1358], [153.52, 0.1358], [156.52, 0.1358], [159.53, 0.1358], [162.54, 0.1331], [165.55, 0.1331], [168.56, 0.0546], [171.58, 0.0546], [174.59, 0.0575], [177.6, 0.0575], [180.6, 0.0575], [183.62, 0.0587], [186.63, 0.0568], [189.64, 0.0568], [192.66, 0.0534], [195.68, 0.0617], [198.68, 0.0617], [201.68, 0.0617], [204.69, 0.0648], [207.69, 0.0648], [210.7, 0.0626], [213.72, 0.063], [216.73, 0.063], [219.74, 0.1094], [222.74, 0.1534], [225.75, 0.1534], [228.77, 0.1443], [231.77, 0.1443], [234.78, 0.1453], [237.8, 0.1453]],
+    "5":  [[3.01, 1.6846], [6.02, 1.6791], [9.02, 1.6521], [12.04, 1.6521], [15.05, 1.6521], [18.06, 1.6521], [21.07, 1.6521], [24.08, 1.6139], [27.09, 1.5625], [30.09, 1.5144], [33.1, 1.4712], [36.11, 1.4712], [39.11, 1.4712], [42.12, 1.4779], [45.13, 1.4779], [48.15, 1.4346], [51.16, 1.4346], [54.17, 1.4346], [57.18, 1.2326], [60.19, 1.2326], [63.2, 1.2326], [66.21, 1.0328], [69.22, 1.0328], [72.24, 1.0328], [75.24, 0.829], [78.25, 0.829], [81.26, 0.625], [84.27, 0.6154], [87.28, 0.6154], [90.29, 0.6154], [93.29, 0.6154], [96.3, 0.6154], [99.31, 0.6154], [102.32, 0.7353], [105.33, 0.7353], [108.34, 0.7353], [111.34, 0.7353], [114.36, 0.7235], [117.37, 0.7235], [120.37, 0.6817], [123.38, 0.6817], [126.39, 0.6245], [129.4, 0.213], [132.4, 0.213], [135.4, 0.213], [138.41, 0.213], [141.43, 0.213], [144.44, 0.4932], [147.45, 0.4932], [150.46, 0.4455], [153.47, 0.4032], [156.48, 0.4032], [159.48, 0.4032], [162.5, 0.4902], [165.5, 0.4996], [168.52, 0.4996], [171.53, 0.4976], [174.53, 0.1292], [177.54, 0.1292], [180.55, 0.1292], [183.56, 0.4359], [186.57, 0.4359], [189.58, 0.4192], [192.59, 0.4192], [195.6, 0.4192], [198.62, 0.4256], [201.63, 0.4807], [204.65, 0.4807], [207.66, 0.1152], [210.66, 0.2307], [213.67, 0.2307], [216.67, 0.2307], [219.69, 0.2307], [222.7, 0.5085], [225.71, 0.5043], [228.73, 0.4597], [231.73, 0.419], [234.74, 0.3696], [237.74, 0.3696]],
+    "20": [[3.01, 1.6008], [6.02, 1.5809], [9.03, 1.5809], [12.04, 1.5781], [15.05, 1.4998], [18.06, 1.4998], [21.07, 1.2882], [24.07, 1.2882], [27.09, 1.2882], [30.1, 1.2882], [33.1, 1.2882], [36.12, 1.3251], [39.13, 1.041], [42.13, 1.2341], [45.14, 1.0723], [48.15, 0.9747], [51.15, 0.9747], [54.16, 0.9747], [57.16, 0.9747], [60.18, 1.1768], [63.19, 1.1768], [66.19, 1.3526], [69.2, 1.1221], [72.21, 1.3208], [75.22, 1.3208], [78.23, 1.3208], [81.25, 1.3208], [84.26, 1.4136], [87.27, 1.4136], [90.28, 1.0391], [93.29, 0.8126], [96.3, 0.8126], [99.31, 0.8126], [102.32, 0.8126], [105.32, 0.3452], [108.33, 0.3452], [111.34, 0.3452], [114.35, 0.6578], [117.36, 0.3452], [120.37, 1.1814], [123.38, 1.1814], [126.38, 1.6273], [129.4, 1.6273], [132.4, 1.6273], [135.42, 1.6273], [138.43, 1.7242], [141.44, 1.7242], [144.45, 1.7225], [147.46, 1.7225], [150.46, 1.3991], [153.47, 1.3991], [156.48, 1.3991], [159.48, 1.3991], [162.49, 1.3991], [165.51, 1.3991], [168.51, 1.3991], [171.52, 1.0213], [174.52, 1.0216], [177.54, 1.0216], [180.55, 1.3288], [183.56, 1.3288], [186.57, 1.3288], [189.57, 1.3288], [192.58, 1.3288], [195.59, 1.2665], [198.61, 1.2665], [201.61, 1.2665], [204.62, 1.2665], [207.64, 1.5491], [210.64, 1.5931], [213.66, 1.5931], [216.67, 1.5931], [219.68, 1.5648], [222.69, 1.4692], [225.7, 1.4692], [228.71, 1.5279], [231.73, 1.0167], [234.74, 1.0167], [237.75, 1.0167]]
+  };
+  const series = [
+    { key: "0",  label: "0 kills (baseline)", colorVar: "--series-0" },
+    { key: "5",  label: "5 kills",            colorVar: "--series-5" },
+    { key: "20", label: "20 kills",           colorVar: "--series-20" }
+  ];
+
+  const root = document.querySelector(".viz-page");
+  const cs = getComputedStyle(root);
+  const colorOf = (v) => cs.getPropertyValue(v).trim();
+
+  const svg = document.getElementById("chart");
+  const W = 820, H = 380;
+  const M = { top: 16, right: 54, bottom: 34, left: 40 };
+  const plotW = W - M.left - M.right;
+  const plotH = H - M.top - M.bottom;
+
+  const allX = data["0"].map(d => d[0]);
+  const allY = [].concat(...series.map(s => data[s.key].map(d => d[1])));
+  const xMax = Math.max(...allX);
+  const yMax = Math.ceil(Math.max(...allY) * 10) / 10;
+
+  const xScale = (x) => M.left + (x / xMax) * plotW;
+  const yScale = (y) => M.top + plotH - (y / yMax) * plotH;
+
+  const NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  // gridlines + y axis
+  const yTicks = 6;
+  for (let i = 0; i <= yTicks; i++) {
+    const y = (yMax / yTicks) * i;
+    const gy = yScale(y);
+    svg.appendChild(el("line", { class: "gridline", x1: M.left, x2: W - M.right, y1: gy, y2: gy }));
+    const label = el("text", { class: "axis-label", x: M.left - 8, y: gy + 4, "text-anchor": "end" });
+    label.textContent = y.toFixed(1);
+    svg.appendChild(label);
+  }
+  svg.appendChild(el("line", { class: "axis-line", x1: M.left, x2: M.left, y1: M.top, y2: M.top + plotH }));
+
+  // x axis
+  const xTicks = [0, 60, 120, 180, 240].filter(t => t <= xMax + 1);
+  xTicks.forEach(t => {
+    const gx = xScale(t);
+    const label = el("text", { class: "axis-label", x: gx, y: M.top + plotH + 20, "text-anchor": "middle" });
+    label.textContent = t + "s";
+    svg.appendChild(label);
+  });
+  svg.appendChild(el("line", { class: "axis-line", x1: M.left, x2: W - M.right, y1: M.top + plotH, y2: M.top + plotH }));
+
+  // legend
+  const legend = document.getElementById("legend");
+  series.forEach(s => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    const key = document.createElement("span");
+    key.className = "legend-key";
+    key.style.background = colorOf(s.colorVar);
+    const text = document.createElement("span");
+    text.textContent = s.label;
+    item.appendChild(key);
+    item.appendChild(text);
+    legend.appendChild(item);
+  });
+
+  // lines + end markers/labels
+  series.forEach(s => {
+    const pts = data[s.key];
+    const d = pts.map((p, i) => (i === 0 ? "M" : "L") + xScale(p[0]).toFixed(1) + "," + yScale(p[1]).toFixed(1)).join(" ");
+    svg.appendChild(el("path", { class: "series-line", d, stroke: colorOf(s.colorVar) }));
+
+    const last = pts[pts.length - 1];
+    const lx = xScale(last[0]), ly = yScale(last[1]);
+    svg.appendChild(el("circle", { class: "end-dot", cx: lx, cy: ly, r: 4, fill: colorOf(s.colorVar), stroke: colorOf("--surface-1") }));
+    const lbl = el("text", { class: "end-label", x: lx + 8, y: ly + 4, fill: "var(--text-primary)" });
+    lbl.textContent = last[1].toFixed(2);
+    svg.appendChild(lbl);
+  });
+
+  // crosshair + tooltip
+  const crosshair = el("line", { class: "crosshair", x1: 0, x2: 0, y1: M.top, y2: M.top + plotH });
+  svg.appendChild(crosshair);
+  const hit = el("rect", { class: "hit-layer", x: M.left, y: M.top, width: plotW, height: plotH });
+  svg.appendChild(hit);
+
+  const tooltip = document.getElementById("tooltip");
+  const container = document.getElementById("chart-container");
+
+  function nearestIndex(pts, xVal) {
+    let best = 0, bestDist = Infinity;
+    pts.forEach((p, i) => {
+      const dist = Math.abs(p[0] - xVal);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    });
+    return best;
+  }
+
+  function showTooltip(evt) {
+    const rect = svg.getBoundingClientRect();
+    const px = ((evt.clientX - rect.left) / rect.width) * W;
+    const xVal = ((px - M.left) / plotW) * xMax;
+    if (xVal < 0 || xVal > xMax) { hideTooltip(); return; }
+
+    const gx = xScale(xVal);
+    crosshair.setAttribute("x1", gx);
+    crosshair.setAttribute("x2", gx);
+    crosshair.style.opacity = 1;
+
+    tooltip.textContent = "";
+    const xLine = document.createElement("div");
+    xLine.className = "tooltip-x";
+    xLine.textContent = "t = " + Math.round(xVal) + "s";
+    tooltip.appendChild(xLine);
+
+    series.forEach(s => {
+      const idx = nearestIndex(data[s.key], xVal);
+      const pt = data[s.key][idx];
+      const row = document.createElement("div");
+      row.className = "tooltip-row";
+      const key = document.createElement("span");
+      key.className = "key";
+      const keyline = document.createElement("span");
+      keyline.className = "keyline";
+      keyline.style.background = colorOf(s.colorVar);
+      const label = document.createElement("span");
+      label.textContent = s.label;
+      key.appendChild(keyline);
+      key.appendChild(label);
+      const val = document.createElement("span");
+      val.className = "val";
+      val.textContent = pt[1].toFixed(3);
+      row.appendChild(key);
+      row.appendChild(val);
+      tooltip.appendChild(row);
+    });
+
+    const containerRect = container.getBoundingClientRect();
+    let left = (evt.clientX - containerRect.left) + 14;
+    let top = (evt.clientY - containerRect.top) + 14;
+    if (left + 170 > containerRect.width) left = (evt.clientX - containerRect.left) - 184;
+    tooltip.style.left = left + "px";
+    tooltip.style.top = top + "px";
+    tooltip.style.opacity = 1;
+  }
+  function hideTooltip() {
+    tooltip.style.opacity = 0;
+    crosshair.style.opacity = 0;
+  }
+  hit.addEventListener("mousemove", showTooltip);
+  hit.addEventListener("mouseleave", hideTooltip);
+
+  // table view
+  const tableWrap = document.getElementById("table-wrap");
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  ["Elapsed (s)", "0 kills", "5 kills", "20 kills"].forEach(h => {
+    const th = document.createElement("th");
+    th.textContent = h;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  data["0"].forEach((p, i) => {
+    const tr = document.createElement("tr");
+    const cells = [p[0].toFixed(1), data["0"][i][1].toFixed(3), data["5"][i][1].toFixed(3), data["20"][i][1].toFixed(3)];
+    cells.forEach(c => {
+      const td = document.createElement("td");
+      td.textContent = c;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+
+  const toggleBtn = document.getElementById("toggle-table");
+  let showingTable = false;
+  toggleBtn.addEventListener("click", () => {
+    showingTable = !showingTable;
+    tableWrap.style.display = showingTable ? "block" : "none";
+    document.getElementById("chart-container").style.display = showingTable ? "none" : "block";
+    toggleBtn.textContent = showingTable ? "View as chart" : "View as table";
+  });
+})();
+</script>
