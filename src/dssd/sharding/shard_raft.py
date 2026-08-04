@@ -111,7 +111,7 @@ class ShardRaftManager(regionpb.ShardRaftServicer):
         return regionpb.ShardVoteReply(term=reply.term, vote_granted=reply.vote_granted)
 
     async def AppendEntries(self, request: regionpb.ShardAppendRequest, context) -> regionpb.ShardAppendReply:
-        entries = [raft.LogEntry(term=e.term, index=e.index, command=e.command) for e in request.entries]
+        entries = tuple(raft.LogEntry(term=e.term, index=e.index, command=e.command) for e in request.entries)
         reply = self.shards[request.shard_id].handle_append_entries(
             raft.AppendEntriesArgs(
                 term=request.term,
