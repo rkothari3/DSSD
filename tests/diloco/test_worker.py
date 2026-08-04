@@ -3,10 +3,10 @@ import asyncio
 import grpc
 import torch
 
-from dssd import spinepb, trainerpb
+from dssd import dashboardpb, spinepb, trainerpb
 from dssd.diloco.data import CharTokenizer, synthetic_corpus
 from dssd.diloco.model import ModelConfig
-from dssd.diloco.worker import Worker
+from dssd.diloco.worker import Worker, WorkerStatusService
 from dssd.membership import GRPCTransport
 from dssd.membership import Service as MembershipService
 from dssd.raft import Config as RaftConfig
@@ -139,3 +139,26 @@ async def test_workers_converge_and_loss_trends_down():
             )
     finally:
         await asyncio.gather(*(m.stop() for m in members))
+
+
+class FakeWorker:
+    def __init__(self, worker_id: str, round_: int, last_loss: float | None) -> None:
+        self.id = worker_id
+        self.round = round_
+        self.last_loss = last_loss
+
+
+async def test_status_service_reports_no_loss_before_first_step():
+    service = WorkerStatusService(FakeWorker("w0", 0, None))
+    resp = await service.GetStatus(dashboardpb.GetStatusRequest(), None)
+    assert resp.worker_id == "w0"
+    assert resp.round == 0
+    assert resp.has_loss is False
+
+
+async def test_status_service_reports_current_loss():
+    service = WorkerStatusService(FakeWorker("w1", 12, 0.345))
+    resp = await service.GetStatus(dashboardpb.GetStatusRequest(), None)
+    assert resp.round == 12
+    assert resp.has_loss is True
+    assert abs(resp.loss - 0.345) < 1e-4

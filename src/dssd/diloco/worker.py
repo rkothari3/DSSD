@@ -14,7 +14,7 @@ import logging
 import grpc
 import torch
 
-from dssd import spinepb, trainerpb
+from dssd import dashboardpb, spinepb, trainerpb
 from dssd.addr import split_addr
 from dssd.cmd.member import parse_peers
 from dssd.membership import GRPCTransport
@@ -134,6 +134,23 @@ class Worker:
                 await asyncio.sleep(0.2)
 
 
+class WorkerStatusService(dashboardpb.WorkerStatusServicer):
+    """Lets external tooling (the live dashboard) read a worker's
+    training progress without scraping logs."""
+
+    def __init__(self, worker: Worker) -> None:
+        self._worker = worker
+
+    async def GetStatus(self, request, context) -> dashboardpb.GetStatusResponse:
+        loss = self._worker.last_loss
+        return dashboardpb.GetStatusResponse(
+            worker_id=self._worker.id,
+            round=self._worker.round,
+            loss=loss if loss is not None else 0.0,
+            has_loss=loss is not None,
+        )
+
+
 async def run(args: argparse.Namespace) -> None:
     peers = parse_peers(args.peer)
     peers.pop(args.id, None)
@@ -177,6 +194,7 @@ async def run(args: argparse.Namespace) -> None:
         batch_size=args.batch_size,
     )
     trainerpb.add_TrainerServicer_to_server(worker.trainer_servicer, server)
+    dashboardpb.add_WorkerStatusServicer_to_server(WorkerStatusService(worker), server)
 
     await server.start()
     logger.info("worker %s up: swim=%s grpc=%s:%d peers=%s", args.id, swim_node.addr, grpc_host, grpc_port, list(peers.keys()))
