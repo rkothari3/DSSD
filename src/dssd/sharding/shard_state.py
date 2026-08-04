@@ -38,6 +38,14 @@ class ShardStateMachine:
         self.agents: dict[str, AgentState] = {}
         self._last_applied_index = 0
         self._apply_task: asyncio.Task | None = None
+        # Guards every "read agents, mutate, propose" sequence. Without
+        # it, the periodic tick loop and an incoming HandOff RPC can
+        # interleave: both read/mutate the same shared dict and each
+        # proposes a full snapshot, and whichever's proposal is applied
+        # last silently wins - a classic lost-update race, not a Raft
+        # bug. Holding this for the whole sequence (including
+        # propose_and_confirm's wait) serializes access per shard.
+        self.lock = asyncio.Lock()
 
     async def start(self) -> None:
         self._apply_task = asyncio.create_task(self._apply_loop())

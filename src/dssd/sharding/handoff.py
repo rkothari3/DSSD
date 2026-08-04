@@ -37,14 +37,15 @@ class RegionOwnerService(regionpb.RegionOwnerServicer):
             return regionpb.HandOffResponse(accepted=False, reason=f"stale term: current is {term}")
 
         a = request.agent
-        previous = dict(sm.agents)
-        sm.agents[a.id] = AgentState(id=a.id, x=a.x, y=a.y, vx=a.vx, vy=a.vy)
+        async with sm.lock:
+            previous = dict(sm.agents)
+            sm.agents[a.id] = AgentState(id=a.id, x=a.x, y=a.y, vx=a.vx, vy=a.vy)
 
-        if await sm.propose_and_confirm():
-            return regionpb.HandOffResponse(accepted=True)
+            if await sm.propose_and_confirm():
+                return regionpb.HandOffResponse(accepted=True)
 
-        sm.agents = previous
-        return regionpb.HandOffResponse(accepted=False, reason="lost leadership before the hand-off committed")
+            sm.agents = previous
+            return regionpb.HandOffResponse(accepted=False, reason="lost leadership before the hand-off committed")
 
 
 async def request_handoff(
