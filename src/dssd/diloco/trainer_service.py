@@ -5,6 +5,13 @@ round closes: either every currently-alive member (per the membership
 spine's quorum) has submitted, or round_timeout elapses with whatever
 partial set has submitted. The timeout path is what lets training
 continue without a restart when a worker dies mid-round.
+
+This class deliberately doesn't fence stale submissions across leader
+changes - a fresh leader always starts its own round counter at 0, so
+"round" alone can't distinguish a stale submission from a legitimate new
+one. That fencing belongs one layer up, keyed on the Raft term (see
+worker.LeaderGatedTrainerService), since a new instance of this class is
+constructed per term anyway.
 """
 
 from __future__ import annotations
@@ -12,7 +19,6 @@ from __future__ import annotations
 import asyncio
 from typing import Awaitable, Callable
 
-import grpc
 import torch
 
 from dssd import trainerpb
@@ -58,11 +64,6 @@ class TrainerService(trainerpb.TrainerServicer):
         pseudo_grad = state_from_pb(request.pseudo_gradient)
 
         async with self._lock:
-            if request.round != self._round:
-                await context.abort(
-                    grpc.StatusCode.FAILED_PRECONDITION,
-                    f"trainer is on round {self._round}, got {request.round}",
-                )
             self._pending[request.worker_id] = pseudo_grad
             if self._timeout_task is None:
                 self._timeout_task = asyncio.create_task(self._finalize_after_timeout())

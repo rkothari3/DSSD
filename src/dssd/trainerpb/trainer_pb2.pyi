@@ -17,14 +17,16 @@ class Tensor(_message.Message):
     def __init__(self, key: _Optional[str] = ..., shape: _Optional[_Iterable[int]] = ..., data: _Optional[_Iterable[float]] = ...) -> None: ...
 
 class SyncRequest(_message.Message):
-    __slots__ = ("worker_id", "round", "pseudo_gradient")
+    __slots__ = ("worker_id", "round", "pseudo_gradient", "term")
     WORKER_ID_FIELD_NUMBER: _ClassVar[int]
     ROUND_FIELD_NUMBER: _ClassVar[int]
     PSEUDO_GRADIENT_FIELD_NUMBER: _ClassVar[int]
+    TERM_FIELD_NUMBER: _ClassVar[int]
     worker_id: str
     round: int
     pseudo_gradient: _containers.RepeatedCompositeFieldContainer[Tensor]
-    def __init__(self, worker_id: _Optional[str] = ..., round: _Optional[int] = ..., pseudo_gradient: _Optional[_Iterable[_Union[Tensor, _Mapping]]] = ...) -> None: ...
+    term: int
+    def __init__(self, worker_id: _Optional[str] = ..., round: _Optional[int] = ..., pseudo_gradient: _Optional[_Iterable[_Union[Tensor, _Mapping]]] = ..., term: _Optional[int] = ...) -> None: ...
 
 class SyncResponse(_message.Message):
     __slots__ = ("round", "global_state")

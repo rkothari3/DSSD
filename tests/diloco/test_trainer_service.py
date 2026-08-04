@@ -1,6 +1,5 @@
 import asyncio
 
-import pytest
 import torch
 
 from dssd import trainerpb
@@ -52,17 +51,6 @@ async def test_round_finalizes_after_timeout_with_partial_quorum():
     assert torch.allclose(state["w"], torch.tensor([-2.0]))
     assert resp.round == 1
 
-
-async def test_stale_round_is_rejected():
-    global_state = {"w": torch.tensor([0.0])}
-
-    async def get_quorum():
-        return ["a"]
-
-    service = TrainerService(get_quorum, global_state, lr=1.0, momentum=0.0, nesterov=False, round_timeout=5.0)
-
-    with pytest.raises(RuntimeError):
-        await service.Sync(make_request("a", 5, {"w": torch.tensor([1.0])}), FakeContext())
 
 
 async def test_shrinking_quorum_lets_next_round_finalize_without_dead_worker():

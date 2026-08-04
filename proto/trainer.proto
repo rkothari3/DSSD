@@ -20,6 +20,12 @@ message SyncRequest {
   string worker_id = 1;
   uint64 round = 2;
   repeated Tensor pseudo_gradient = 3;
+  // The Raft term the worker believes is authoritative. Fences off
+  // submissions aimed at a since-replaced leader: a fresh leader always
+  // starts its own barrier at round 0, so round alone can't tell a
+  // stale submission from a legitimate new one after a leader change,
+  // but the term can.
+  uint64 term = 4;
 }
 
 message SyncResponse {
