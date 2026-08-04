@@ -10,6 +10,7 @@ def make_config(id: str) -> Config:
         ping_timeout=0.015,
         indirect_ping_count=2,
         suspicion_timeout=0.06,
+        resurrect_interval=0.03,
     )
 
 
@@ -109,3 +110,26 @@ async def test_refutation_keeps_live_member_alive():
         assert members[0].state == State.ALIVE
     finally:
         await node.stop()
+
+
+async def test_falsely_dead_member_is_resurrected():
+    a, b = Node(make_config("a")), Node(make_config("b"))
+    await a.start()
+    await b.start()
+    try:
+        # b is genuinely alive and reachable, but a's table has it
+        # recorded as DEAD - exactly what a false-positive suspicion
+        # timeout (e.g. from a load spike) produces. Nothing should
+        # ever gossip this DEAD verdict back to b (b was never told),
+        # so only a's own periodic re-probe can discover the truth.
+        a.learn("b", b.addr)
+        a._merge_update(Member(id="b", addr=b.addr, state=State.DEAD, incarnation=0))
+        assert any(m.id == "b" and m.state == State.DEAD for m in a.members())
+
+        def b_is_alive_again() -> bool:
+            return any(m.id == "b" and m.state == State.ALIVE for m in a.members())
+
+        await eventually(b_is_alive_again, timeout=1.0)
+    finally:
+        await a.stop()
+        await b.stop()

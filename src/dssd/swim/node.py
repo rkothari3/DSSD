@@ -32,10 +32,13 @@ class Config:
     ping_timeout: float = 0.05  # time to wait for a direct or indirect ack
     indirect_ping_count: int = 3  # helpers used for indirect probing
     suspicion_timeout: float = 0.0  # 0 means "derive from protocol_period"
+    resurrect_interval: float = 0.0  # 0 means "derive from protocol_period"
 
     def __post_init__(self) -> None:
         if self.suspicion_timeout <= 0:
             self.suspicion_timeout = 5 * self.protocol_period
+        if self.resurrect_interval <= 0:
+            self.resurrect_interval = 10 * self.protocol_period
 
 
 @dataclass
@@ -62,6 +65,7 @@ class Node:
         self._broadcasts: list[_BroadcastItem] = []
 
         self._probe_task: asyncio.Task | None = None
+        self._resurrect_task: asyncio.Task | None = None
         self._background: set[asyncio.Task] = set()
         self._stopped = False
 
@@ -85,6 +89,7 @@ class Node:
         host, port = transport.get_extra_info("sockname")[:2]
         self._bind_addr = format_addr(host, port)
         self._probe_task = asyncio.create_task(self._probe_loop())
+        self._resurrect_task = asyncio.create_task(self._resurrect_loop())
 
     async def stop(self) -> None:
         """Shuts the node down. Safe to call more than once."""
@@ -93,9 +98,11 @@ class Node:
         self._stopped = True
         if self._probe_task is not None:
             self._probe_task.cancel()
+        if self._resurrect_task is not None:
+            self._resurrect_task.cancel()
         if self._transport is not None:
             self._transport.close()
-        pending = [self._probe_task, *self._background]
+        pending = [self._probe_task, self._resurrect_task, *self._background]
         await asyncio.gather(*(t for t in pending if t is not None), return_exceptions=True)
 
     def members(self) -> list[Member]:
@@ -225,6 +232,57 @@ class Node:
                 self._send(req.sender.addr, Message(type=MsgType.ACK, seq=req.seq, sender=self._self_sender()))
         finally:
             self._unregister_waiter(seq)
+
+    async def _resurrect_loop(self) -> None:
+        """Periodically re-probes a random DEAD member directly (bypassing
+        the normal probe target filter, which excludes dead members so
+        they aren't probed forever). A false-positive DEAD verdict is
+        otherwise permanent: dead members are never probed again, so the
+        node that marked one dead never learns otherwise, and the
+        accused node - which never asked to be probed - has no way to
+        know it needs to refute anything. This is the only path back
+        from a false DEAD determination.
+        """
+        try:
+            while True:
+                await asyncio.sleep(self.cfg.resurrect_interval)
+                await self._attempt_resurrection()
+        except asyncio.CancelledError:
+            pass
+
+    async def _attempt_resurrection(self) -> None:
+        dead = [m for m in self._members.values() if m.state == State.DEAD]
+        if not dead:
+            return
+        target = random.choice(dead)
+
+        seq = self._next_seq()
+        fut = self._register_waiter(seq)
+        try:
+            self._send(target.addr, Message(type=MsgType.PING, seq=seq, sender=self._self_sender()))
+            # Generous relative to a normal probe's ping_timeout: this
+            # runs on the slow path (every resurrect_interval, not
+            # gating anything urgent), and it exists specifically to
+            # catch false positives that tight timeouts under transient
+            # load produce - reusing that same tight timeout here would
+            # just reproduce the failure it's meant to correct.
+            if await self._wait_ack(fut, 5 * self.cfg.ping_timeout):
+                self._revive(target.id)
+        finally:
+            self._unregister_waiter(seq)
+
+    def _revive(self, id: str) -> None:
+        current = self._members.get(id)
+        if current is None or current.state != State.DEAD:
+            return  # already changed by other means since the probe was sent
+        # We just confirmed it ourselves, so we bump the incarnation
+        # ourselves rather than trusting the ack to carry one: the
+        # revived node has no idea anyone thought it was dead, so it
+        # never had a reason to bump its own incarnation.
+        revived = Member(current.id, current.addr, State.ALIVE, current.incarnation + 1)
+        self._members[id] = revived
+        self._enqueue_broadcast(revived)
+        self._emit(Event(EventType.RECOVERED, revived))
 
     def _mark_suspect(self, target: Member) -> None:
         current = self._members.get(target.id)
