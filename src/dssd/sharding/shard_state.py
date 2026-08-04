@@ -59,7 +59,12 @@ class ShardStateMachine:
         try:
             while True:
                 msg = await self._apply_queue.get()
-                self.agents = decode_tick(msg.command)
+                if msg.command:
+                    self.agents = decode_tick(msg.command)
+                # An empty command is the no-op every new leader proposes
+                # on election (see raft.Raft._become_leader) - it exists
+                # purely to unstick older, already-safe entries; it must
+                # not itself be treated as "replace agents with nothing."
                 self._last_applied_index = msg.index
         except asyncio.CancelledError:
             pass

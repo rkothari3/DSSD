@@ -38,15 +38,25 @@ class RegionServer:
     async def spawn_agent(self, agent: AgentState) -> bool:
         """Injects an agent into whichever shard it currently belongs
         to, if this node happens to be that shard's leader. Returns
-        whether it took effect here."""
+        whether it durably took effect here.
+
+        Unlike the routine tick loop (which fires-and-forgets each
+        propose, since a missed tick is harmless - the next one just
+        catches up), this is a one-time, no-retry placement: it waits
+        for the entry to actually commit, the same way HandOff does,
+        so a caller that sees True back can't lose the agent to a leader
+        crash a moment later.
+        """
         shard_id = agent.shard_id(self.grid)
         sm = self.state_machines.get(shard_id)
         if sm is None or not sm.raft.state()[1]:
             return False
         async with sm.lock:
             sm.agents[agent.id] = agent
-            sm.propose_tick()
-        return True
+            if await sm.propose_and_confirm():
+                return True
+            del sm.agents[agent.id]
+            return False
 
     def stop(self) -> None:
         self._stopped = True
@@ -92,8 +102,9 @@ class RegionServer:
                 async with sm.lock:
                     sm.agents.pop(agent.id, None)
                 touched.add(sm)
+                logger.info("handoff of %s from %s to %s accepted", agent.id, shard_id, dest_shard_id)
             else:
-                logger.debug("handoff of %s from %s to %s deferred: %s", agent.id, shard_id, dest_shard_id, reason)
+                logger.info("handoff of %s from %s to %s deferred: %s", agent.id, shard_id, dest_shard_id, reason)
 
         for sm in touched:
             async with sm.lock:

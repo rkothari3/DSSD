@@ -202,6 +202,19 @@ class Raft:
         self._match_index = {p: 0 for p in self.cfg.peers}
         self._last_heartbeat_sent = 0.0  # force an immediate heartbeat
 
+        # A prior leader's entries can be physically replicated to a
+        # majority yet still uncommitted in every survivor's eyes: per
+        # the Raft paper §5.4.2, an entry only commits via direct
+        # majority-counting when it's from the *current* leader's term,
+        # so an old, already-safe entry stays invisible until this new
+        # leader commits something of its own - at which point it's
+        # retroactively covered too. Proposing an empty no-op entry
+        # immediately closes that gap instead of waiting on whatever the
+        # application happens to propose next (which, if it naively
+        # encodes "current state" while stale entries are still
+        # unapplied, can clobber them the moment they finally apply).
+        self.propose(b"")
+
     # --- RPC handlers ---
 
     def handle_request_vote(self, args: RequestVoteArgs) -> RequestVoteReply:

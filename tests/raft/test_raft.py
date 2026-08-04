@@ -146,7 +146,12 @@ async def test_log_replication():
         assert ok
 
         for queue in cluster.apply_queues.values():
+            # Every new leader also proposes an empty no-op on election
+            # (see raft.Raft._become_leader), so "hello" isn't
+            # necessarily the first message on the queue - skip past it.
             msg = await asyncio.wait_for(queue.get(), timeout=2.0)
+            while msg.command == b"":
+                msg = await asyncio.wait_for(queue.get(), timeout=2.0)
             assert msg.index == index
             assert msg.command == b"hello"
     finally:
