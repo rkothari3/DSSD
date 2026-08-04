@@ -98,6 +98,7 @@ async def start_cluster(n: int, inner_steps: int = 5, batch_size: int = 8) -> li
         spinepb.add_MembershipServicer_to_server(m.membership_service, m.server)
         spinepb.add_RaftServicer_to_server(m.membership_service, m.server)
         trainerpb.add_TrainerServicer_to_server(m.worker.trainer_servicer, m.server)
+        dashboardpb.add_WorkerStatusServicer_to_server(WorkerStatusService(m.worker), m.server)
 
         await m.raft_node.start()
         await m.server.start()
